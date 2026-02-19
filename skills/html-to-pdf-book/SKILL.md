@@ -1,5 +1,5 @@
 ---
-name: converting-html-to-pdf
+name: html-to-pdf-book
 description: Converts multiple HTML files into a single PDF using pandoc. Use when asked to merge HTML pages into PDF, create a PDF book from HTML, or fix PDF generation issues.
 ---
 
