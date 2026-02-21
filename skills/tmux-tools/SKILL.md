@@ -3,9 +3,7 @@ name: tmux-tools
 description: "Use tmux to run long-lived background tasks (servers, watchers, log tailing), execute tasks in parallel, or create collaborative sessions the user can audit. Load this skill when a task involves background processes, parallel execution, persistent monitoring, or when the user wants visibility into agent-run commands."
 ---
 
-# tmux for Coding Agents
-
-## When to use tmux
+## When to use `tmux`
 
 ### 1. Background tasks that outlive a single command
 
@@ -31,14 +29,22 @@ Examples: exploratory debugging, multi-step deployments, anything the user expli
 
 ### Start a background task
 
+Always use `remain-on-exit` so the session stays alive after the process exits and output can still be captured:
+
+```bash
+tmux new-session -d -s <name> "<command>" \; set-option -t <name> remain-on-exit on
+```
+
+For long-lived processes that never exit on their own (servers, watchers), it can be omitted:
+
 ```bash
 tmux new-session -d -s <name> "<command>"
 ```
 
-For short-lived commands, set `remain-on-exit` so output is preserved after the process exits:
+For complex commands (those with quotes, pipes, or env vars), wrap in `bash -c` with single quotes to avoid shell escaping issues:
 
 ```bash
-tmux new-session -d -s <name> "<command>" \; set-option -t <name> remain-on-exit on
+tmux new-session -d -s <name> "bash -c '<command>'" \; set-option -t <name> remain-on-exit on
 ```
 
 ### Start a collaborative shell session
@@ -58,14 +64,25 @@ Tell the user: *"Attach with `tmux attach -t <name>` to watch or review."*
 ### Check output
 
 ```bash
-tmux capture-pane -t <name> -p | tail -n 50
+tmux capture-pane -t <name> -p -S -500
 ```
+
+`-S -500` captures up to 500 lines of scrollback (clamped to whatever is available), avoiding both the truncation of the default visible-only capture and the potential flood of `-S -` on large buffers.
 
 ### Stop a session
 
 ```bash
 tmux kill-session -t <name>
 ```
+
+### Check if a task has finished
+
+```bash
+tmux display-message -t <name> -p '#{pane_dead}'         # 1 = exited, 0 = still running
+tmux display-message -t <name> -p '#{pane_dead_status}'  # exit code (empty while still running)
+```
+
+Poll `pane_dead` to know when the process has finished, then read `pane_dead_status` to determine success (`0`) or failure (non-zero).
 
 ### Other useful commands
 
@@ -82,10 +99,11 @@ tmux has-session -t <name> # check if session exists (exit code 0 = yes)
 ### For background tasks:
 
 1. Pick a descriptive session name (`devserver`, `logs`, `tests`).
-2. Start with `tmux new-session -d -s <name> "<command>"`.
+2. Start with `tmux new-session -d -s <name> "<command>" \; set-option -t <name> remain-on-exit on`.
 3. Continue working on other things.
-4. Check output with `tmux capture-pane` when needed.
-5. When done, `tmux kill-session -t <name>`.
+4. Poll `#{pane_dead}` to detect completion, then `#{pane_dead_status}` for exit code.
+5. Read output with `tmux capture-pane -t <name> -p -S -500`.
+6. When done, `tmux kill-session -t <name>`.
 
 ### For parallel tasks:
 
